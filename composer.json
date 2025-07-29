@@ -26,18 +26,18 @@
     "extra": {
         "laravel": {
             "providers": [
-                "EvanSchleret\\LaraMjml\\Providers\\LaravelUserPresenceServiceProvider"
+                "EvanSchleret\\LaravelUserPresence\\Providers\\LaravelUserPresenceServiceProvider"
             ]
         }
     },
     "autoload": {
         "psr-4": {
-            "EvanSchleret\\LaraMjml\\": "src"
+            "EvanSchleret\\LaravelUserPresence\\": "src"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "EvanSchleret\\LaraMjml\\Tests\\": "tests"
+            "EvanSchleret\\LaravelUserPresence\\Tests\\": "tests"
         }
     },
     "scripts": {
