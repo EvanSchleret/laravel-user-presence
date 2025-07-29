@@ -21,8 +21,8 @@ class LaravelUserPresenceServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__.'/../../config/laravel-user-presence.php' => config_path('laravel-user-presence.php'),
-            __DIR__.'/../../database/migrations/' => database_path('migrations'),
+            __DIR__.'/../config/laravel-user-presence.php' => config_path('laravel-user-presence.php'),
+            __DIR__.'/../database/migrations/' => database_path('migrations'),
         ]);
     }
 
@@ -32,7 +32,7 @@ class LaravelUserPresenceServiceProvider extends ServiceProvider
     private function mergeConfig(): void
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../../config/laravel-user-presence.php', 'laravel-user-presence'
+            __DIR__.'/../config/laravel-user-presence.php', 'laravel-user-presence'
         );
     }
 
@@ -42,7 +42,7 @@ class LaravelUserPresenceServiceProvider extends ServiceProvider
     private function publishConfig(): void
     {
         $this->publishes([
-            __DIR__.'/../../config/laravel-user-presence.php' => config_path('laravel-user-presence.php'),
+            __DIR__.'/../config/laravel-user-presence.php' => config_path('laravel-user-presence.php'),
         ]);
     }
 }
