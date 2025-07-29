@@ -1,6 +1,6 @@
 <?php
 
-namespace EvanSchleret\LaraMjml\Providers;
+namespace EvanSchleret\LaravelUserPresence\Providers;
 
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;

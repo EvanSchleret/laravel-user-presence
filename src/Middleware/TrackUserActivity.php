@@ -1,5 +1,6 @@
 <?php
 
+namespace EvanSchleret\LaravelUserPresence\Middleware;
 
 use App\Models\User;
 use Closure;
