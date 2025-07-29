@@ -1,0 +1,58 @@
+{
+    "name": "evanschleret/laravel-user-presence",
+    "description": "Another Laravel package for tracking user presence in real-time applications.",
+    "keywords": [
+        "EvanSchleret",
+        "laravel",
+        "presence"
+    ],
+    "homepage": "https://github.com/evanschleret/laravel-user-presence",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Evan Schleret",
+            "email": "evan@schleret.ch"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "illuminate/config": "^11.16",
+        "illuminate/support": "^11.16"
+    },
+    "require-dev": {
+        "pestphp/pest": "^2.20",
+        "laravel/pint": "^1.0",
+        "spatie/ray": "^1.28"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "EvanSchleret\\LaraMjml\\Providers\\LaravelUserPresenceServiceProvider"
+            ]
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "EvanSchleret\\LaraMjml\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "EvanSchleret\\LaraMjml\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "test-coverage": "vendor/bin/pest --coverage",
+        "format": "vendor/bin/pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "phpstan/extension-installer": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
