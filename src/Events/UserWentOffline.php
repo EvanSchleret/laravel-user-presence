@@ -2,13 +2,15 @@
 
 namespace EvanSchleret\LaravelUserPresence\Events;
 
-use Illuminate\Queue\SerializesModels;
-use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Contracts\Auth\Authenticatable;
-
-class UserWentOffline
+class UserWentOffline extends UserPresenceEvent
 {
-    use Dispatchable, SerializesModels;
+    public function broadcastAs(): string
+    {
+        return 'user.went.offline';
+    }
 
-    public function __construct(public Authenticatable $user) {}
+    protected function status(): string
+    {
+        return 'offline';
+    }
 }

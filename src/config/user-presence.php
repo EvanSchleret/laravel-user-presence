@@ -13,6 +13,10 @@ return [
     */
     'guard' => env('LARAVEL_USER_PRESENCE_GUARD', 'web'),
 
+    'model' => env('LARAVEL_USER_PRESENCE_MODEL'),
+
+    'channel_authorizer' => env('LARAVEL_USER_PRESENCE_CHANNEL_AUTHORIZER'),
+
     /*
     |--------------------------------------------------------------------------
     | Online Threshold (in seconds)

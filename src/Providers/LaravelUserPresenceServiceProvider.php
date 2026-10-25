@@ -2,24 +2,45 @@
 
 namespace EvanSchleret\LaravelUserPresence\Providers;
 
-use Illuminate\Support\Facades\View;
+use EvanSchleret\LaravelUserPresence\Console\Commands\UpdatePresenceStatuses;
+use EvanSchleret\LaravelUserPresence\Contracts\PresenceChannelAuthorizer;
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\ServiceProvider;
 
 class LaravelUserPresenceServiceProvider extends ServiceProvider
 {
-    /**
-     * Register LaraMjml service.
-     */
     public function register(): void
     {
         $this->mergeConfig();
     }
 
-    /**
-     * Bootstrap services.
-     */
     public function boot(): void
     {
+        $channelAuthorizer = config('user-presence.channel_authorizer');
+
+        Broadcast::channel(
+            'user-presence.{userId}',
+            function (Authenticatable $user, string $userId) use ($channelAuthorizer): bool {
+                if ($channelAuthorizer === null) {
+                    return (string) $user->getAuthIdentifier() === $userId;
+                }
+
+                if (! is_string($channelAuthorizer) || ! class_exists($channelAuthorizer)) {
+                    throw new \InvalidArgumentException('The configured presence channel authorizer must be a class name.');
+                }
+
+                $authorizer = $this->app->make($channelAuthorizer);
+
+                if (! $authorizer instanceof PresenceChannelAuthorizer) {
+                    throw new \InvalidArgumentException('The configured presence channel authorizer must implement PresenceChannelAuthorizer.');
+                }
+
+                return $authorizer->authorize($user, $userId);
+            },
+            config('user-presence.guard') ? ['guards' => [config('user-presence.guard')]] : [],
+        );
+
         $this->publishes([
             __DIR__.'/../config/user-presence.php' => config_path('user-presence.php'),
         ]);
@@ -27,25 +48,16 @@ class LaravelUserPresenceServiceProvider extends ServiceProvider
         $this->publishesMigrations([
             __DIR__.'/../database/migrations' => database_path('migrations'),
         ], 'migrations');
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([UpdatePresenceStatuses::class]);
+        }
     }
 
-    /**
-     * Merge the configuration.
-     */
     private function mergeConfig(): void
     {
         $this->mergeConfigFrom(
             __DIR__.'/../config/user-presence.php', 'user-presence'
         );
-    }
-
-    /**
-     * Publish the configuration.
-     */
-    private function publishConfig(): void
-    {
-        $this->publishes([
-            __DIR__.'/../config/user-presence.php' => config_path('user-presence.php'),
-        ]);
     }
 }
