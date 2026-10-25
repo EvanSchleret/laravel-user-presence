@@ -1,14 +1,19 @@
 <div align="center">
 
-<img src="logo.png" alt="Laravel User Presence logo" width="250">
+<img src="logo.png" alt="Laravel User Presence" width="250">
 
 # Laravel User Presence
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/evanschleret/laravel-user-presence.svg?style=flat-square)](https://packagist.org/packages/evanschleret/laravel-user-presence)
-[![Total Downloads](https://img.shields.io/packagist/dt/evanschleret/laravel-user-presence.svg?style=flat-square)](https://packagist.org/packages/evanschleret/laravel-user-presence)
 </div>
 
-This package allows you to track user presence in your Laravel application. It provides a simple way to determine if a user is online, offline, or idle. Useful for chat apps, dashboards, real-time features, and more.
+Track whether Laravel users are online, idle, or offline, and broadcast status changes to Laravel Echo.
+
+## Requirements
+
+- Laravel 12 or 13
+- PHP 8.2 or later (Laravel 13 requires PHP 8.3 or later)
+- An Eloquent user model with a nullable `last_seen_at` timestamp
 
 ## Installation
 
@@ -16,38 +21,18 @@ This package allows you to track user presence in your Laravel application. It p
 composer require evanschleret/laravel-user-presence
 ```
 
-Optionally, publish the config file:
+The package migrations support the default `users` table, including upgrading the legacy `last_activity_at` column and adding the broadcast status marker:
 
 ```bash
-php artisan vendor:publish --provider="EvanSchleret\LaravelUserPresence\Providers\LaravelUserPresenceServiceProvider"
-```
-
-# Requirements
-
-- Laravel 10 or 11
-- PHP >= 8.2
-- A last_seen_at column on your users table (or whichever model you attach presence to)
-
-```
-$table->timestamp('last_seen_at')->nullable();
-```
-
-You could also publish the migration file to create this column:
-
-```bash
-php artisan vendor:publish --provider="EvanSchleret\LaravelUserPresence\Providers\LaravelUserPresenceServiceProvider" --tag="migrations"
-```
-
-Then run the migration:
-
-```bash
+php artisan vendor:publish --provider="EvanSchleret\LaravelUserPresence\Providers\LaravelUserPresenceServiceProvider" --tag=migrations
 php artisan migrate
 ```
 
-# Usage
+For a custom user table, add nullable `last_seen_at` and `presence_broadcast_status` columns and index them together. Publish the config only when you need to change the defaults.
 
-Trait
-Add the trait to your User model:
+## Usage
+
+Add the trait to your authenticatable model:
 
 ```php
 use EvanSchleret\LaravelUserPresence\Traits\HasUserPresence;
@@ -58,62 +43,49 @@ class User extends Authenticatable
 }
 ```
 
-## Middleware
-Add the UpdateLastSeen middleware to your web or api group to update presence on each request:
+Append the middleware to authenticated routes in `bootstrap/app.php`:
 
 ```php
-// app/Http/Kernel.php
-protected $middlewareGroups = [
-    'web' => [
-        // ...
-        \EvanSchleret\LaravelUserPresence\Http\Middleware\UpdateLastSeen::class,
-    ],
-];
+use EvanSchleret\LaravelUserPresence\Middleware\UpdateLastSeen;
+use Illuminate\Foundation\Configuration\Middleware;
 
+->withMiddleware(function (Middleware $middleware): void {
+    $middleware->web(append: [UpdateLastSeen::class]);
+    $middleware->api(append: [UpdateLastSeen::class]);
+})
 ```
 
-## Attributes available
-After setup, the following attributes will be available on the user model:
+The model exposes `$user->is_online`, `$user->is_idle`, `$user->is_offline`, `$user->last_seen_ago`, and `$user->presence_status`.
 
+Defaults are five minutes online and ten minutes idle. Customize `online_threshold`, `idle_threshold`, `guard`, `model`, or `channel_authorizer` in `config/user-presence.php` as needed.
+
+## Broadcasting and scheduling
+
+Install and configure Laravel broadcasting, then listen on the user's private channel:
+
+```ts
+Echo.private(`user-presence.${userId}`)
+  .listen('.user.went.online', (event) => updatePresence(event.user_id, event.status))
+  .listen('.user.went.idle', (event) => updatePresence(event.user_id, event.status))
+  .listen('.user.went.offline', (event) => updatePresence(event.user_id, event.status))
 ```
-$user->is_online       // true if active in the last 2 minutes
-$user->is_offline      // inverse of is_online
-$user->is_idle         // true if inactive for 2–10 minutes
-$user->last_seen_ago   // "3 minutes ago", "never", etc.
-$user->presence_status // 'online', 'away', or 'offline'
-```
 
-## Configuration
+By default, a user can listen only to their own channel. Configure `channel_authorizer` to apply your application's access rules when users need to see other users' presence. Broadcasts use Laravel's queue when an asynchronous queue connection is configured.
 
-You can customize time thresholds in the published config file:
+Register the transition command in `routes/console.php`:
 
 ```php
-// config/user-presence.php
-return [
-    'online_threshold' => 300,  // in seconds
-    'idle_threshold' => 600,     // in seconds
-    'guard' => 'web', // or 'api' / 'sanctum' if using API authentication
-];
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('user-presence:update-statuses')->everyMinute()->withoutOverlapping();
 ```
 
-## Events
+Laravel's scheduler must run every minute, for example with `php artisan schedule:run` from the server cron. See the [Laravel scheduling documentation](https://laravel.com/docs/13.x/scheduling).
 
-The package dispatches these events when presence changes:
+## Support
 
-```
-UserWentOnline
-UserWentOffline
-UserWentIdle
-```
+This package supports Laravel 12 and 13. See [CONTRIBUTING.md](CONTRIBUTING.md) to contribute and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
-# Roadmap
+## License
 
-- [ ] Tests
-- [ ] Redis driver for real-time broadcast presence
-- [ ] Eloquent observer-based updates
-
-# Contributing
-I'm always open to contributions! Feel free to submit issues or pull requests on GitHub.
-
-# License
-This package is open-sourced software licensed under the [MIT license](LICENSE.md).
+Laravel User Presence is open-source software licensed under the [MIT license](LICENSE.md).
