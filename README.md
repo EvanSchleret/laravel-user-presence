@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="logo.png" alt="Laravel User Presence" width="250">
-
-# Laravel User Presence
+<img src="logo.png" alt="Laravel User Presence — Online, Idle, Offline" width="900">
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/evanschleret/laravel-user-presence.svg?style=flat-square)](https://packagist.org/packages/evanschleret/laravel-user-presence)
 </div>
