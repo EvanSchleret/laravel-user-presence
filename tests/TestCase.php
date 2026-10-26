@@ -18,6 +18,8 @@ abstract class TestCase extends OrchestraTestCase
     protected function getEnvironmentSetUp($app): void
     {
         $app['config']->set('database.default', 'testing');
+        $app['config']->set('cache.default', 'array');
+        $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('a', 32)));
         $app['config']->set('auth.providers.users.model', User::class);
         $app['config']->set('database.connections.testing', [
             'driver' => 'sqlite',
@@ -33,8 +35,6 @@ abstract class TestCase extends OrchestraTestCase
 
         Schema::create('users', function (Blueprint $table): void {
             $table->id();
-            $table->timestamp('last_seen_at')->nullable();
-            $table->string('presence_broadcast_status')->nullable();
         });
     }
 }

@@ -4,14 +4,18 @@ namespace EvanSchleret\LaravelUserPresence\Providers;
 
 use EvanSchleret\LaravelUserPresence\Console\Commands\UpdatePresenceStatuses;
 use EvanSchleret\LaravelUserPresence\Contracts\PresenceChannelAuthorizer;
+use EvanSchleret\LaravelUserPresence\Http\Controllers\HeartbeatController;
+use EvanSchleret\LaravelUserPresence\Services\PresenceService;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 class LaravelUserPresenceServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(PresenceService::class);
         $this->mergeConfig();
     }
 
@@ -45,6 +49,8 @@ class LaravelUserPresenceServiceProvider extends ServiceProvider
             __DIR__.'/../config/user-presence.php' => config_path('user-presence.php'),
         ]);
 
+        $this->registerHeartbeatRoute();
+
         $this->publishesMigrations([
             __DIR__.'/../database/migrations' => database_path('migrations'),
         ], 'migrations');
@@ -59,5 +65,24 @@ class LaravelUserPresenceServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(
             __DIR__.'/../config/user-presence.php', 'user-presence'
         );
+    }
+
+    private function registerHeartbeatRoute(): void
+    {
+        if (! config('user-presence.heartbeat.enabled', true)) {
+            return;
+        }
+
+        $guard = config('user-presence.guard');
+        $rateLimit = config('user-presence.heartbeat.rate_limit', []);
+        $attempts = max(1, (int) ($rateLimit['attempts'] ?? 60));
+        $decayMinutes = max(1, (int) ($rateLimit['decay_minutes'] ?? 1));
+        $middleware = array_values((array) config('user-presence.heartbeat.middleware', ['web']));
+        $middleware[] = $guard ? 'auth:'.$guard : 'auth';
+        $middleware[] = "throttle:{$attempts},{$decayMinutes}";
+
+        Route::middleware($middleware)
+            ->post(trim((string) config('user-presence.heartbeat.path', 'user-presence/heartbeat'), '/'), HeartbeatController::class)
+            ->name('user-presence.heartbeat');
     }
 }

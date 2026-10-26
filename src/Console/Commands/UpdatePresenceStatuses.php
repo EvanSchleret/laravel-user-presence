@@ -14,11 +14,33 @@ class UpdatePresenceStatuses extends Command
 
     public function handle(): int
     {
+        $store = config('user-presence.store', 'auto');
+
+        if ($store === 'cache') {
+            $this->info('Cached presence transitions are evaluated when status is read or activity is recorded.');
+
+            return self::SUCCESS;
+        }
+
         $model = $this->presenceModel();
-        $onlineThreshold = (int) config('user-presence.online_threshold');
-        $idleThreshold = (int) config('user-presence.idle_threshold');
-        $onlineCutoff = now()->subSeconds($onlineThreshold);
-        $idleCutoff = now()->subSeconds($idleThreshold);
+        $instance = new $model;
+        $table = $instance->getTable();
+        $schema = $instance->getConnection()->getSchemaBuilder();
+
+        if ($store === 'auto' && ! $schema->hasColumn($table, 'last_seen_at')) {
+            $this->info('Cached presence transitions are evaluated when status is read or activity is recorded.');
+
+            return self::SUCCESS;
+        }
+
+        if (! $schema->hasColumn($table, 'last_seen_at') || ! $schema->hasColumn($table, 'presence_broadcast_status')) {
+            $this->info('The configured model does not use the legacy presence columns.');
+
+            return self::SUCCESS;
+        }
+
+        $onlineCutoff = now()->subSeconds((int) config('user-presence.online_threshold', 300));
+        $idleCutoff = now()->subSeconds((int) config('user-presence.idle_threshold', 600));
 
         $model::query()
             ->whereIn('presence_broadcast_status', ['online', 'idle'])
