@@ -2,14 +2,17 @@
 
 use EvanSchleret\LaravelUserPresence\Events\UserWentIdle;
 use EvanSchleret\LaravelUserPresence\Events\UserWentOffline;
+use EvanSchleret\LaravelUserPresence\Events\UserWentOnline;
 use EvanSchleret\LaravelUserPresence\Middleware\UpdateLastSeen;
 use EvanSchleret\LaravelUserPresence\Services\PresenceService;
 use EvanSchleret\LaravelUserPresence\Tests\Fixtures\AlternateUser;
+use EvanSchleret\LaravelUserPresence\Tests\Fixtures\ConfigurablePresencePolicy;
 use EvanSchleret\LaravelUserPresence\Tests\Fixtures\User;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
@@ -38,6 +41,58 @@ it('works without adding presence columns to the users table', function (): void
     expect(Schema::hasColumn('users', 'last_seen_at'))->toBeFalse()
         ->and(Schema::hasColumn('users', 'presence_broadcast_status'))->toBeFalse()
         ->and($user->fresh()->presence_status)->toBe('online');
+});
+
+it('keeps presence enabled for every user when no policy is configured', function (): void {
+    $user = User::query()->create();
+
+    expect($user->is_presence_enabled)->toBeTrue();
+});
+
+it('clears presence while disabled and waits for fresh activity after re-enabling', function (): void {
+    config()->set('user-presence.policy', ConfigurablePresencePolicy::class);
+    $user = User::query()->create();
+    $user->setAttribute('presence_enabled', true);
+    $user->updatePresenceStatus();
+
+    $user->setAttribute('presence_enabled', false);
+
+    expect($user->is_presence_enabled)->toBeFalse()
+        ->and($user->presence_status)->toBe('offline')
+        ->and($user->last_seen_ago)->toBe('never');
+
+    Event::assertNotDispatched(UserWentOffline::class);
+
+    $user->setAttribute('presence_enabled', true);
+
+    expect($user->presence_status)->toBe('offline')
+        ->and($user->last_seen_ago)->toBe('never');
+
+    $user->updatePresenceStatus();
+
+    expect($user->presence_status)->toBe('online');
+    Event::assertDispatchedTimes(UserWentOnline::class, 2);
+});
+
+it('clears legacy presence columns without broadcasting a transition when disabled', function (): void {
+    config()->set('user-presence.policy', ConfigurablePresencePolicy::class);
+    config()->set('user-presence.store', 'auto');
+    Schema::table('users', function (Blueprint $table): void {
+        $table->timestamp('last_seen_at')->nullable();
+        $table->string('presence_broadcast_status')->nullable();
+    });
+    $user = User::query()->create();
+    DB::table('users')->where('id', $user->getKey())->update([
+        'last_seen_at' => now(),
+        'presence_broadcast_status' => 'online',
+    ]);
+    $user->setAttribute('presence_enabled', false);
+
+    expect($user->presence_status)->toBe('offline')
+        ->and(DB::table('users')->where('id', $user->getKey())->value('last_seen_at'))->toBeNull()
+        ->and(DB::table('users')->where('id', $user->getKey())->value('presence_broadcast_status'))->toBeNull();
+
+    Event::assertNotDispatched(UserWentOffline::class);
 });
 
 it('calculates online, idle, and offline at the configured boundaries', function (): void {
@@ -217,6 +272,21 @@ it('can disable request middleware tracking through configuration', function ():
     expect(app(PresenceService::class)->lastSeenAt($user))->toBeNull();
 });
 
+it('does not record middleware activity for a user who disabled presence', function (): void {
+    config()->set('user-presence.policy', ConfigurablePresencePolicy::class);
+    $user = User::query()->create();
+    $user->setAttribute('presence_enabled', false);
+    $this->actingAs($user, 'web');
+
+    app(UpdateLastSeen::class)->handle(
+        Request::create('/'),
+        fn (Request $request): Response => new Response('ok'),
+    );
+
+    Event::assertNotDispatched(UserWentOnline::class);
+    expect(app(PresenceService::class)->lastSeenAt($user))->toBeNull();
+});
+
 it('accepts an authenticated heartbeat without trusting a client timestamp', function (): void {
     $user = User::query()->create();
     $this->actingAs($user, 'web');
@@ -225,6 +295,18 @@ it('accepts an authenticated heartbeat without trusting a client timestamp', fun
         ->assertNoContent();
 
     expect(app(PresenceService::class)->lastSeenAt($user)?->equalTo(now()))->toBeTrue();
+});
+
+it('accepts heartbeats without recording activity for a user who disabled presence', function (): void {
+    config()->set('user-presence.policy', ConfigurablePresencePolicy::class);
+    $user = User::query()->create();
+    $user->setAttribute('presence_enabled', false);
+    $this->actingAs($user, 'web');
+
+    $this->postJson('/user-presence/heartbeat')->assertNoContent();
+
+    Event::assertNotDispatched(UserWentOnline::class);
+    expect(app(PresenceService::class)->lastSeenAt($user))->toBeNull();
 });
 
 it('requires authentication for the heartbeat endpoint', function (): void {

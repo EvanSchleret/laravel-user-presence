@@ -2,6 +2,7 @@
 
 namespace EvanSchleret\LaravelUserPresence\Services;
 
+use EvanSchleret\LaravelUserPresence\Contracts\PresencePolicy;
 use EvanSchleret\LaravelUserPresence\Events\UserWentIdle;
 use EvanSchleret\LaravelUserPresence\Events\UserWentOffline;
 use EvanSchleret\LaravelUserPresence\Events\UserWentOnline;
@@ -16,6 +17,29 @@ use Throwable;
 class PresenceService
 {
     private array $resolvedStores = [];
+
+    private array $resolvedColumns = [];
+
+    public function isEnabled(Model $user): bool
+    {
+        $policyClass = config('user-presence.policy');
+
+        if ($policyClass === null) {
+            return true;
+        }
+
+        if (! is_string($policyClass) || ! class_exists($policyClass)) {
+            throw new InvalidArgumentException('The configured presence policy must be a class name.');
+        }
+
+        $policy = app($policyClass);
+
+        if (! $policy instanceof PresencePolicy) {
+            throw new InvalidArgumentException('The configured presence policy must implement PresencePolicy.');
+        }
+
+        return $policy->isEnabled($user);
+    }
 
     public function recordRequestActivity(Model $user, Request $request): void
     {
@@ -49,6 +73,12 @@ class PresenceService
 
     public function recordActivity(Model $user, string $activityId = 'default'): void
     {
+        if (! $this->isEnabled($user)) {
+            $this->clearPresenceState($user);
+
+            return;
+        }
+
         $identity = $this->identity($user);
 
         if ($identity === null) {
@@ -127,6 +157,12 @@ class PresenceService
 
     public function status(Model $user): string
     {
+        if (! $this->isEnabled($user)) {
+            $this->clearPresenceState($user);
+
+            return 'offline';
+        }
+
         $identity = $this->identity($user);
 
         if ($identity === null) {
@@ -175,6 +211,12 @@ class PresenceService
 
     public function lastSeenAt(Model $user): ?Carbon
     {
+        if (! $this->isEnabled($user)) {
+            $this->clearPresenceState($user);
+
+            return null;
+        }
+
         if ($this->usesColumnStore($user)) {
             return $this->columnLastSeenAt($user);
         }
@@ -226,6 +268,53 @@ class PresenceService
             .':'.hash('sha256', (string) $id);
 
         return [$repository, $key, $key.':lock'];
+    }
+
+    private function clearPresenceState(Model $user): void
+    {
+        $identity = $this->identity($user);
+
+        if ($identity === null) {
+            return;
+        }
+
+        [$repository, $key, $lockKey] = $identity;
+
+        $this->withLock($repository, $lockKey, function () use ($repository, $key, $user): void {
+            $repository->forget($key);
+            $this->clearLegacyPresenceColumns($user);
+        });
+    }
+
+    private function clearLegacyPresenceColumns(Model $user): void
+    {
+        $updates = [];
+
+        if ($this->usesColumnStore($user) && $this->hasColumn($user, 'last_seen_at')) {
+            $updates['last_seen_at'] = null;
+        }
+
+        if ($this->hasColumn($user, 'presence_broadcast_status')) {
+            $updates['presence_broadcast_status'] = null;
+        }
+
+        if ($updates === []) {
+            return;
+        }
+
+        $user->newQuery()
+            ->whereKey($user->getKey())
+            ->where(function ($query) use ($updates): void {
+                foreach (array_keys($updates) as $column) {
+                    $query->orWhereNotNull($column);
+                }
+            })
+            ->update($updates);
+
+        foreach ($updates as $column => $value) {
+            $user->setAttribute($column, $value);
+            $user->syncOriginalAttribute($column);
+        }
     }
 
     private function withLock(object $repository, string $lockKey, callable $callback): mixed
@@ -384,9 +473,7 @@ class PresenceService
             $cacheKey = $connection.':'.$table;
 
             if (! array_key_exists($cacheKey, $this->resolvedStores)) {
-                $this->resolvedStores[$cacheKey] = $user->getConnection()
-                    ->getSchemaBuilder()
-                    ->hasColumn($table, 'last_seen_at')
+                $this->resolvedStores[$cacheKey] = $this->hasColumn($user, 'last_seen_at')
                     ? 'column'
                     : 'cache';
             }
@@ -409,6 +496,23 @@ class PresenceService
     private function usesColumnStore(Model $user): bool
     {
         return $this->storageDriver($user) === 'column';
+    }
+
+    private function hasColumn(Model $user, string $column): bool
+    {
+        $cacheKey = $user->getConnection()->getName().':'.$user->getTable();
+
+        if (! array_key_exists($cacheKey, $this->resolvedColumns)) {
+            $this->resolvedColumns[$cacheKey] = [];
+        }
+
+        if (! array_key_exists($column, $this->resolvedColumns[$cacheKey])) {
+            $this->resolvedColumns[$cacheKey][$column] = $user->getConnection()
+                ->getSchemaBuilder()
+                ->hasColumn($user->getTable(), $column);
+        }
+
+        return $this->resolvedColumns[$cacheKey][$column];
     }
 
     private function cacheStore(): ?string

@@ -17,6 +17,8 @@ return [
 
     'channel_authorizer' => env('LARAVEL_USER_PRESENCE_CHANNEL_AUTHORIZER'),
 
+    'policy' => null,
+
     'store' => env('LARAVEL_USER_PRESENCE_STORE', 'auto'),
 
     'cache_store' => env('LARAVEL_USER_PRESENCE_CACHE_STORE'),

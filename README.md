@@ -52,6 +52,31 @@ A user without a known activity is offline. The `last_seen_ago` attribute return
 
 The model exposes `$user->is_online`, `$user->is_idle`, `$user->is_offline`, `$user->last_seen_ago`, and `$user->presence_status`. For v2.0 compatibility, `is_offline` remains the inverse of `is_online`, so it is also true while a user is idle; use `$user->presence_status === 'offline'` to check the offline state exactly.
 
+## Individual presence preference
+
+Applications can configure a policy to read each user's existing preference without adding a package migration or database column. By default, presence stays enabled for every user. Configure a class implementing `PresencePolicy` in `config/user-presence.php`:
+
+```php
+'policy' => App\Presence\UserPresencePolicy::class,
+```
+
+```php
+namespace App\Presence;
+
+use EvanSchleret\LaravelUserPresence\Contracts\PresencePolicy;
+use Illuminate\Database\Eloquent\Model;
+
+class UserPresencePolicy implements PresencePolicy
+{
+    public function isEnabled(Model $user): bool
+    {
+        return (bool) $user->getAttribute('presence_enabled');
+    }
+}
+```
+
+The application owns the preference field and any setting screen or endpoint. When a user's policy returns `false`, the package skips heartbeat and middleware activity, reports `offline` and `never`, and clears retained activity so re-enabling presence requires a fresh request. The model's `$user->is_presence_enabled` accessor lets the application hide the badge. In legacy column mode, disabling presence also clears the package's `last_seen_at` and `presence_broadcast_status` values without emitting a transition event.
+
 ## Cache storage
 
 The `auto` storage mode is the default. It keeps using `last_seen_at` when the model's table already has that column, which preserves existing installations, and uses cache when the column is absent. Laravel's default cache store is used unless you select a named store. Cache keys include the model class and model identifier, and activity timestamps are separated by session, access token, or configured device identifier.
@@ -148,7 +173,7 @@ By default, users can listen only to their own channel. Configure `channel_autho
 
 ## Configuration
 
-Publish the configuration to customize the selected guard, model, thresholds, cache, heartbeat route, middleware, or broadcasting. The default thresholds are 300 seconds online and 600 seconds idle across the code, tests, and configuration.
+Publish the configuration to customize the selected guard, model, per-user policy, thresholds, cache, heartbeat route, middleware, or broadcasting. The default thresholds are 300 seconds online and 600 seconds idle across the code, tests, and configuration.
 
 ## Support
 

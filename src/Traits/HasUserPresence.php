@@ -21,6 +21,11 @@ trait HasUserPresence
         return app(PresenceService::class)->status($this) === 'online';
     }
 
+    public function getIsPresenceEnabledAttribute(): bool
+    {
+        return app(PresenceService::class)->isEnabled($this);
+    }
+
     public function getIsOfflineAttribute(): bool
     {
         return ! $this->is_online;
