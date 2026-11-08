@@ -3,6 +3,11 @@
 <img src="logo.png" alt="Laravel User Presence — Online, Idle, Offline" width="900">
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/evanschleret/laravel-user-presence.svg?style=flat-square)](https://packagist.org/packages/evanschleret/laravel-user-presence)
+[![Tests](https://github.com/EvanSchleret/laravel-user-presence/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/EvanSchleret/laravel-user-presence/actions/workflows/tests.yml)
+[![License](https://img.shields.io/packagist/l/evanschleret/laravel-user-presence.svg?style=flat-square)](https://packagist.org/packages/evanschleret/laravel-user-presence)
+[![PHP Version](https://img.shields.io/packagist/php-v/evanschleret/laravel-user-presence.svg?style=flat-square)](https://packagist.org/packages/evanschleret/laravel-user-presence)
+[![Laravel](https://img.shields.io/badge/Laravel-12%20%7C%2013-FF2D20?style=flat-square&logo=laravel&logoColor=white)](README.md#requirements)
+[![Downloads](https://img.shields.io/packagist/dt/evanschleret/laravel-user-presence.svg?style=flat-square)](https://packagist.org/packages/evanschleret/laravel-user-presence)
 </div>
 
 Track whether Laravel users are online, idle, or offline. The package stores server-side activity in Laravel's cache by default and can broadcast calculated status transitions.
